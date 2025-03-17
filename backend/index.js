@@ -8,28 +8,34 @@ const app = express();
 app.use(cors()); // Enable CORS for frontend communication
 app.use(express.json());
 
-// Ensure uploads directory exists
 const uploadDir = './uploads';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
-// File Upload Configuration
+// Multer Storage Configuration with Duplicate File Check
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
+        const filePath = path.join(uploadDir, file.originalname);
+        
+        if (fs.existsSync(filePath)) {
+            return cb(new Error('File already exists. Duplicate uploads are not allowed.'));
+        }
+
+        cb(null, file.originalname);
     }
 });
 
+// File Type Filter
 const fileFilter = (req, file, cb) => {
     const allowedTypes = ['text/plain', 'text/csv'];
     if (allowedTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
-        cb(new Error('Invalid file type. Only .txt and .csv are allowed.'));
+        cb(new Error('Invalid file type. Only .txt and .csv are allowed.'), false);
     }
 };
 
@@ -46,7 +52,7 @@ app.post('/upload', upload.single('file'), (req, res, next) => {
 // Global Error Handler Middleware
 app.use((err, req, res, next) => {
     console.error(err.message);
-    res.status(500).json({ error: err.message });
+    res.status(400).json({ error: err.message });
 });
 
 // Start the Server
